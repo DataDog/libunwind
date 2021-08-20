@@ -55,6 +55,16 @@ AC_CHECK_TYPES([struct elf_prstatus, struct prstatus], [], [],
 #endif
 ])
 
+dnl activate my bad
+AC_MSG_CHECKING([whether to prevent usage of dl_iterate_phdr from libc])
+AC_ARG_ENABLE(libc-dso-lookup,
+AS_HELP_STRING([--disable-libc-dso-lookup],[turn off using dl_iterate_phdr from libc]),[disable_libc_dso_lookup=yes],,)
+if test x$disable_libc_dso_lookup = xyes; then
+  CPPFLAGS="${CPPFLAGS} -D__OWN_IMPLEMENTATION"
+  LDFLAGS="${LDFLAGS} -ldl"
+fi
+AC_MSG_RESULT([$disable_libc_dso_lookup])
+
 AC_CHECK_DECLS([PTRACE_POKEUSER, PTRACE_POKEDATA, PTRACE_SETREGSET,
 PTRACE_TRACEME, PTRACE_CONT, PTRACE_SINGLESTEP,
 PTRACE_SYSCALL, PT_IO, PT_GETREGS,

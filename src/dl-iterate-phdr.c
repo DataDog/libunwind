@@ -23,7 +23,7 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 
-#if defined(__ANDROID__) && __ANDROID_API__ < 21
+#if ((defined(__ANDROID__) && __ANDROID_API__ < 21) || defined(__OWN_IMPLEMENTATION))
 
 #include <dlfcn.h>
 #include <link.h>
@@ -54,6 +54,7 @@ dl_iterate_phdr (int (*callback) (struct dl_phdr_info *info, size_t size, void *
   struct map_iterator mi;
   unsigned long start, end, offset, flags;
 
+#ifndef defined(__OWN_IMPLEMENTATION)
   if (!initialized)
     {
       libc_impl = dlsym (RTLD_NEXT, "dl_iterate_phdr");
@@ -62,7 +63,7 @@ dl_iterate_phdr (int (*callback) (struct dl_phdr_info *info, size_t size, void *
 
   if (libc_impl != NULL)
     return libc_impl (callback, data);
-
+#endif
   if (maps_init (&mi, getpid()) < 0)
     return -1;
 
