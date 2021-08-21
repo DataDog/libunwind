@@ -48,22 +48,11 @@ HIDDEN int
 dl_iterate_phdr (int (*callback) (struct dl_phdr_info *info, size_t size, void *data),
                  void *data)
 {
-  static int initialized = 0;
   static unw_iterate_phdr_impl libc_impl;
   int rc = 0;
   struct map_iterator mi;
   unsigned long start, end, offset, flags;
 
-#ifndef defined(__OWN_IMPLEMENTATION)
-  if (!initialized)
-    {
-      libc_impl = dlsym (RTLD_NEXT, "dl_iterate_phdr");
-      initialized = 1;
-    }
-
-  if (libc_impl != NULL)
-    return libc_impl (callback, data);
-#endif
   if (maps_init (&mi, getpid()) < 0)
     return -1;
 
