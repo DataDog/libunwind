@@ -76,6 +76,8 @@ unw_backtrace (void **buffer, int size)
   return n;
 }
 
+int _number_of_slow_backtrace = 0;
+
 int
 unw_backtrace2 (void **buffer, int size, unw_context_t* uc2)
 {
@@ -110,10 +112,17 @@ unw_backtrace2 (void **buffer, int size, unw_context_t* uc2)
   // and add 1 to it (the one we retrieved above)
   if (unlikely (tdep_trace (&cursor, buffer, &n) < 0))
     {
+      ++_number_of_slow_backtrace;
       return slow_backtrace (buffer, remaining_size, &uc, UNW_INIT_SIGNAL_FRAME) + 1;
     }
 
   return n + 1;
+}
+
+int
+unw_get_number_of_slow_backtrace()
+{
+  return _number_of_slow_backtrace;
 }
 
 #ifdef CONFIG_WEAK_BACKTRACE
