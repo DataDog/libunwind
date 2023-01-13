@@ -279,6 +279,7 @@ unw_save_loc_t;
 #define unw_regname			UNW_ARCH_OBJ(regname)
 #define unw_flush_cache			UNW_ARCH_OBJ(flush_cache)
 #define unw_strerror			UNW_ARCH_OBJ(strerror)
+//#define uwn_init_thread_cache UNW_OBJ(init_thread_cache)
 
 extern unw_addr_space_t unw_create_addr_space (unw_accessors_t *, int);
 extern void unw_destroy_addr_space (unw_addr_space_t);
@@ -318,5 +319,6 @@ extern const char *unw_strerror (int);
 extern int unw_backtrace (void **, int);
 extern int unw_backtrace2 (void **, int, unw_context_t*);
 extern int unw_get_number_of_slow_backtrace ();
+//extern void uwn_init_thread_cache ();
 
 extern unw_addr_space_t unw_local_addr_space;

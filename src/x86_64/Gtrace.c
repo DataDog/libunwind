@@ -203,6 +203,19 @@ trace_cache_get (void)
   }
 }
 
+// to be called by 
+void uwn_init_thread_cache()
+{
+  pthread_once(&trace_cache_once, &trace_cache_init_once);
+  unw_trace_cache_t *cache;
+  if (! (cache = tls_cache))
+    {
+      cache = trace_cache_create();
+      pthread_setspecific(trace_cache_key, cache);
+      tls_cache = cache;
+    }
+}
+
 /* Initialise frame properties for address cache slot F at address
    RIP using current CFA, RBP and RSP values.  Modifies CURSOR to
    that location, performs one unw_step(), and fills F with what
