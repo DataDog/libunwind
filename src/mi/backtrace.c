@@ -113,6 +113,8 @@ unw_backtrace2 (void **buffer, int size, unw_context_t* uc2)
   if (unlikely (tdep_trace (&cursor, buffer, &n) < 0))
     {
       ++_number_of_slow_backtrace;
+      // we need another copy to avoid using a potential modified context
+      uc = *(unw_context_t*)uc2;
       return slow_backtrace (buffer, remaining_size, &uc, UNW_INIT_SIGNAL_FRAME) + 1;
     }
 
