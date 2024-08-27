@@ -64,13 +64,6 @@ _Uhppa_uc_addr (ucontext_t *uc, int reg)
 
 # endif /* UNW_LOCAL_ONLY */
 
-HIDDEN unw_dyn_info_list_t _U_dyn_info_list;
-
-/* XXX fix me: there is currently no way to locate the dyn-info list
-       by a remote unwinder.  On ia64, this is done via a special
-       unwind-table entry.  Perhaps something similar can be done with
-       DWARF2 unwind info.  */
-
 static void
 put_unwind_info (unw_addr_space_t as, unw_proc_info_t *proc_info, void *arg)
 {
@@ -81,7 +74,13 @@ static int
 get_dyn_info_list_addr (unw_addr_space_t as, unw_word_t *dyn_info_list_addr,
                         void *arg)
 {
-  *dyn_info_list_addr = (unw_word_t) &_U_dyn_info_list;
+#ifndef UNW_LOCAL_ONLY
+# pragma weak _U_dyn_info_list_addr
+  if (!_U_dyn_info_list_addr)
+    return -UNW_ENOINFO;
+#endif
+  // Access the `_U_dyn_info_list` from `LOCAL_ONLY` library, i.e. libunwind.so.
+  *dyn_info_list_addr = _U_dyn_info_list_addr ();
   return 0;
 }
 
@@ -92,11 +91,11 @@ access_mem (unw_addr_space_t as, unw_word_t addr, unw_word_t *val, int write,
   if (write)
     {
       Debug (12, "mem[%x] <- %x\n", addr, *val);
-      *(unw_word_t *) addr = *val;
+      memcpy ((void *) addr, val, sizeof(unw_word_t));
     }
   else
     {
-      *val = *(unw_word_t *) addr;
+      memcpy (val, (void *) addr, sizeof(unw_word_t));
       Debug (12, "mem[%x] -> %x\n", addr, *val);
     }
   return 0;
@@ -118,12 +117,12 @@ access_reg (unw_addr_space_t as, unw_regnum_t reg, unw_word_t *val, int write,
 
   if (write)
     {
-      *(unw_word_t *) addr = *val;
+      memcpy ((void *) addr, val, sizeof(unw_word_t));
       Debug (12, "%s <- %x\n", unw_regname (reg), *val);
     }
   else
     {
-      *val = *(unw_word_t *) addr;
+      memcpy (val, (void *) addr, sizeof(unw_word_t));
       Debug (12, "%s -> %x\n", unw_regname (reg), *val);
     }
   return 0;
@@ -175,10 +174,23 @@ get_static_proc_name (unw_addr_space_t as, unw_word_t ip,
   return _Uelf32_get_proc_name (as, getpid (), ip, buf, buf_len, offp);
 }
 
+static int
+get_static_elf_filename (unw_addr_space_t as, unw_word_t ip,
+                         char *buf, size_t buf_len, unw_word_t *offp,
+                         void *arg)
+{
+  return _Uelf32_get_elf_filename (as, getpid (), ip, buf, buf_len, offp);
+}
+
 HIDDEN void
 hppa_local_addr_space_init (void)
 {
   memset (&local_addr_space, 0, sizeof (local_addr_space));
+#ifndef UNW_REMOTE_ONLY
+# if defined(HAVE_DL_ITERATE_PHDR)
+  local_addr_space.iterate_phdr_function = dl_iterate_phdr;
+# endif
+#endif
   local_addr_space.caching_policy = UNWI_DEFAULT_CACHING_POLICY;
   local_addr_space.acc.find_proc_info = dwarf_find_proc_info;
   local_addr_space.acc.put_unwind_info = put_unwind_info;
@@ -188,6 +200,7 @@ hppa_local_addr_space_init (void)
   local_addr_space.acc.access_fpreg = access_fpreg;
   local_addr_space.acc.resume = hppa_local_resume;
   local_addr_space.acc.get_proc_name = get_static_proc_name;
+  local_addr_space.acc.get_elf_filename = get_static_elf_filename;
   unw_flush_cache (&local_addr_space, 0, 0);
 }
 

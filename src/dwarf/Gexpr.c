@@ -60,6 +60,8 @@ static const uint8_t operands[256] =
     [DW_OP_const4s] =           OPND1 (VAL32),
     [DW_OP_const8u] =           OPND1 (VAL64),
     [DW_OP_const8s] =           OPND1 (VAL64),
+    [DW_OP_constu]  =           OPND1 (ULEB128),
+    [DW_OP_consts]  =           OPND1 (SLEB128),
     [DW_OP_pick] =              OPND1 (VAL8),
     [DW_OP_plus_uconst] =       OPND1 (ULEB128),
     [DW_OP_skip] =              OPND1 (VAL16),
@@ -108,7 +110,7 @@ static const uint8_t operands[256] =
   };
 
 static inline unw_sword_t
-sword (unw_addr_space_t as, unw_word_t val)
+sword (unw_addr_space_t as UNUSED, unw_word_t val)
 {
   switch (dwarf_addr_size (as))
     {
@@ -120,7 +122,7 @@ sword (unw_addr_space_t as, unw_word_t val)
     }
 }
 
-static inline unw_word_t
+static inline int
 read_operand (unw_addr_space_t as, unw_accessors_t *a,
               unw_word_t *addr, int operand_type, unw_word_t *val, void *arg)
 {
@@ -167,7 +169,7 @@ read_operand (unw_addr_space_t as, unw_accessors_t *a,
       ret = dwarf_readu64 (as, a, addr, &u64, arg);
       if (ret < 0)
         return ret;
-      *val = u64;
+      *val = (unw_word_t) u64;
       break;
 
     case ULEB128:
@@ -235,8 +237,8 @@ dwarf_stack_aligned(struct dwarf_cursor *c, unw_word_t cfa_addr,
 }
 
 HIDDEN int
-dwarf_eval_expr (struct dwarf_cursor *c, unw_word_t *addr, unw_word_t len,
-                 unw_word_t *valp, int *is_register)
+dwarf_eval_expr (struct dwarf_cursor *c, unw_word_t stack_val, unw_word_t *addr,
+                 unw_word_t len, unw_word_t *valp, int *is_register)
 {
   unw_word_t operand1 = 0, operand2 = 0, tmp1, tmp2 = 0, tmp3, end_addr;
   uint8_t opcode, operands_signature, u8;
@@ -249,18 +251,26 @@ dwarf_eval_expr (struct dwarf_cursor *c, unw_word_t *addr, unw_word_t len,
   uint32_t u32;
   uint64_t u64;
   int ret;
+  unw_word_t stackerror = 0;
+
+// pop() is either followed by a semicolon or
+// used in a push() macro
+// In either case we can sneak in an extra statement
 # define pop()                                  \
-({                                              \
-  if ((tos - 1) >= MAX_EXPR_STACK_SIZE)         \
-    {                                           \
-      Debug (1, "Stack underflow\n");           \
-      return -UNW_EINVAL;                       \
-    }                                           \
-  stack[--tos];                                 \
-})
+(((tos - 1) >= MAX_EXPR_STACK_SIZE) ?           \
+  stackerror++ :   stack[--tos]);               \
+if (stackerror)                                 \
+  {                                             \
+    Debug (1, "Stack underflow\n");             \
+    return -UNW_EINVAL;                         \
+  }
+
+// Removed the parentheses on the assignment
+// to allow the extra stack error check
+// when x is evaluated
 # define push(x)                                \
 do {                                            \
-  unw_word_t _x = (x);                          \
+  unw_word_t _x = x;                            \
   if (tos >= MAX_EXPR_STACK_SIZE)               \
     {                                           \
       Debug (1, "Stack overflow\n");            \
@@ -268,16 +278,17 @@ do {                                            \
     }                                           \
   stack[tos++] = _x;                            \
 } while (0)
+
+// Pick is always used in a push() macro
+// In either case we can sneak in an extra statement
 # define pick(n)                                \
-({                                              \
-  unsigned int _index = tos - 1 - (n);          \
-  if (_index >= MAX_EXPR_STACK_SIZE)            \
-    {                                           \
-      Debug (1, "Out-of-stack pick\n");         \
-      return -UNW_EINVAL;                       \
-    }                                           \
-  stack[_index];                                \
-})
+(((tos - 1 - (n)) >= MAX_EXPR_STACK_SIZE) ?     \
+  stackerror++ : stack[tos - 1 - (n)]);         \
+if (stackerror)                                 \
+  {                                             \
+    Debug (1, "Out-of-stack pick\n");           \
+    return -UNW_EINVAL;                         \
+  }
 
   as = c->as;
   arg = c->as_arg;
@@ -285,10 +296,14 @@ do {                                            \
   end_addr = *addr + len;
   *is_register = 0;
 
-  Debug (14, "len=%lu, pushing cfa=0x%lx\n",
-         (unsigned long) len, (unsigned long) c->cfa);
+  Debug (14, "len=%lu, pushing initial value=0x%lx\n",
+         (unsigned long) len, (unsigned long) stack_val);
 
-  push (c->cfa);        /* push current CFA as required by DWARF spec */
+  /* The DWARF standard requires the current CFA to be pushed onto the stack */
+  /* before evaluating DW_CFA_expression and DW_CFA_val_expression programs. */
+  /* DW_CFA_def_cfa_expressions do not take an initial value, but we push on */
+  /* a dummy value to keep this logic consistent. */
+  push (stack_val);
 
   while (*addr < end_addr)
     {
@@ -351,7 +366,7 @@ do {                                            \
           Debug (15, "OP_bregx(r%d,0x%lx)\n",
                  (int) operand1, (unsigned long) operand2);
           if ((ret = unw_get_reg (dwarf_to_cursor (c),
-                                  dwarf_to_unw_regnum (operand1), &tmp1)) < 0)
+                                  dwarf_to_unw_regnum ((int) operand1), &tmp1)) < 0)
             return ret;
           push (tmp1 + operand2);
           break;
@@ -460,7 +475,7 @@ do {                                            \
             case 8:
               if ((ret = dwarf_readu64 (as, a, &tmp1, &u64, arg)) < 0)
                 return ret;
-              tmp2 = u64;
+              tmp2 = (unw_word_t) u64;
               if (operand1 != 8)
                 {
                   if (dwarf_is_big_endian (as))
@@ -515,7 +530,7 @@ do {                                            \
           Debug (15, "OP_abs\n");
           tmp1 = pop ();
           if (tmp1 & ((unw_word_t) 1 << (8 * dwarf_addr_size (as) - 1)))
-            tmp1 = -tmp1;
+            tmp1 = (~tmp1 + 1);
           push (tmp1);
           break;
 
@@ -563,7 +578,8 @@ do {                                            \
 
         case DW_OP_neg:
           Debug (15, "OP_neg\n");
-          push (-pop ());
+          tmp1 = pop ();
+          push (~tmp1 + 1);
           break;
 
         case DW_OP_not:

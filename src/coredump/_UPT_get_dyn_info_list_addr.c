@@ -23,12 +23,12 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 
-#include "_UCD_lib.h"
 #include "_UCD_internal.h"
 
-#if UNW_TARGET_IA64 && defined(__linux)
+#if UNW_TARGET_IA64 && defined(__linux__)
 # include "elf64.h"
 # include "os-linux.h"
+# include "../ptrace/_UPT_internal.h"
 
 static inline int
 get_list_addr (unw_addr_space_t as, unw_word_t *dil_addr, void *arg,
@@ -38,28 +38,26 @@ get_list_addr (unw_addr_space_t as, unw_word_t *dil_addr, void *arg,
   struct UPT_info *ui = arg;
   struct map_iterator mi;
   char path[PATH_MAX];
-  unw_dyn_info_t *di;
   unw_word_t res;
   int count = 0;
 
   maps_init (&mi, ui->pid);
-  while (maps_next (&mi, &lo, &hi, &off))
+  while (maps_next (&mi, &lo, &hi, &off, NULL))
     {
       if (off)
         continue;
 
-      invalidate_edi (&ui->edi);
+      invalidate_edi(&ui->edi);
 
-      if (elf_map_image (&ui->ei, path) < 0)
+      if (elf_map_image (&ui->edi.ei, path) < 0)
         /* ignore unmappable stuff like "/SYSV00001b58 (deleted)" */
         continue;
 
       Debug (16, "checking object %s\n", path);
 
-      di = tdep_find_unwind_table (&ui->edi, as, path, lo, off);
-      if (di)
+      if (tdep_find_unwind_table (&ui->edi, as, path, lo, off, 0) > 0)
         {
-          res = _Uia64_find_dyn_list (as, di, arg);
+          res = _Uia64_find_dyn_list (as, &ui->edi.di_cache, arg);
           if (res && count++ == 0)
             {
               Debug (12, "dyn_info_list_addr = 0x%lx\n", (long) res);
@@ -74,9 +72,16 @@ get_list_addr (unw_addr_space_t as, unw_word_t *dil_addr, void *arg,
 
 #else
 
+/* XXX fix me: there is currently no way to locate the dyn-info list
+       by a remote unwinder.  On ia64, this is done via a special
+       unwind-table entry.  Perhaps something similar can be done with
+       DWARF2 unwind info.  */
+
 static inline int
-get_list_addr (unw_addr_space_t as, unw_word_t *dil_addr, void *arg,
-               int *countp)
+get_list_addr (unw_addr_space_t  as UNUSED,
+               unw_word_t       *dil_addr UNUSED,
+               void             *arg UNUSED,
+               int              *countp)
 {
 # warning Implement get_list_addr(), please.
   *countp = 0;
