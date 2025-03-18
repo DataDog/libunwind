@@ -195,7 +195,6 @@ get_frame_state (unw_cursor_t *cursor)
   char name[128];
   if (((*a->get_proc_name) (c->dwarf.as, c->dwarf.ip, name, sizeof(name), &offp, c->dwarf.as_arg)) != 0)
   {
-    fs.loc = AT_FP;
     return fs;
   }
 
@@ -749,24 +748,25 @@ unw_step (unw_cursor_t *cursor)
       /* No frame record, fallback to link register (X30).  */
       c->frame_info.cfa_reg_offset = 0;
       c->frame_info.cfa_reg_sp = 0;
-      c->frame_info.fp_cfa_offset = -1;
-      c->frame_info.lr_cfa_offset = -1;
+      c->frame_info.fp_cfa_offset = 0;
+      c->frame_info.lr_cfa_offset = 8;
       c->frame_info.sp_cfa_offset = -1;
       c->dwarf.loc[UNW_AARCH64_PC] = c->dwarf.loc[UNW_AARCH64_X30];
       c->dwarf.loc[UNW_AARCH64_X30] = DWARF_NULL_LOC;
-      if (!DWARF_IS_NULL_LOC (c->dwarf.loc[UNW_AARCH64_PC]))
-        {
-          ret = dwarf_get (&c->dwarf, c->dwarf.loc[UNW_AARCH64_PC], &c->dwarf.ip);
-          if (ret < 0)
-            {
-              Debug (2, "failed to get pc from link register: %d\n", ret);
-              return ret;
-            }
-          Debug (2, "link register (x30) = 0x%016lx\n", c->dwarf.ip);
-          ret = 1;
-        }
-      else
-        c->dwarf.ip = 0;
+      return 1;
+      // if (!DWARF_IS_NULL_LOC (c->dwarf.loc[UNW_AARCH64_PC]))
+      //   {
+      //     ret = dwarf_get (&c->dwarf, c->dwarf.loc[UNW_AARCH64_PC], &c->dwarf.ip);
+      //     if (ret < 0)
+      //       {
+      //         Debug (2, "failed to get pc from link register: %d\n", ret);
+      //         return ret;
+      //       }
+      //     Debug (2, "link register (x30) = 0x%016lx\n", c->dwarf.ip);
+      //     ret = 1;
+      //   }
+      // else
+      //   c->dwarf.ip = 0;
     }
 
   return (c->dwarf.ip == 0) ? 0 : 1;
