@@ -194,7 +194,10 @@ get_frame_state (unw_cursor_t *cursor)
   /* Use get_proc_name to find start_ip of procedure */
   char name[128];
   if (((*a->get_proc_name) (c->dwarf.as, c->dwarf.ip, name, sizeof(name), &offp, c->dwarf.as_arg)) != 0)
+  {
+    fs.loc = AT_FP;
     return fs;
+  }
 
   start_ip = c->dwarf.ip - offp;
 
@@ -703,6 +706,9 @@ unw_step (unw_cursor_t *cursor)
               /* Frame record holds X29 and X30 values.  */
               c->dwarf.loc[UNW_AARCH64_X29] = DWARF_MEM_LOC (c->dwarf, fp);
               c->dwarf.loc[UNW_AARCH64_X30] = DWARF_MEM_LOC (c->dwarf, fp + 8);
+              c->frame_info.lr_cfa_offset = 8;
+              c->frame_info.cfa_reg_sp = 0;
+              c->frame_info.fp_cfa_offset = 0;
             }
           else
             {
@@ -717,6 +723,8 @@ unw_step (unw_cursor_t *cursor)
 
               c->frame_info.cfa_reg_offset = fs.offset;
               c->frame_info.cfa_reg_sp = 1;
+              c->frame_info.lr_cfa_offset = fs.offset + 8;
+              c->frame_info.fp_cfa_offset = fs.offset;
 
               c->dwarf.loc[UNW_AARCH64_X29] = DWARF_MEM_LOC (c->dwarf, sp + fs.offset);
               c->dwarf.loc[UNW_AARCH64_X30] = DWARF_MEM_LOC (c->dwarf, sp + fs.offset + 8);
