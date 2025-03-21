@@ -412,7 +412,7 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
   struct cursor *c = (struct cursor *) cursor;
   struct dwarf_cursor *d = &c->dwarf;
   unw_trace_cache_t *cache;
-  unw_word_t fp, sp, pc, cfa, lr;
+  unw_word_t fp, sp, pc, cfa, lr = 0;
   int maxdepth = 0;
   int depth = 0;
   int ret;
@@ -432,7 +432,6 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
   sp = cfa = d->cfa;
   ACCESS_MEM_FAST(ret, 0, d, DWARF_GET_LOC(d->loc[UNW_AARCH64_X29]), fp);
   assert(ret == 0);
-  lr = 0;
 
   /* Get frame cache. */
   if (unlikely(! (cache = trace_cache_get())))
@@ -442,7 +441,8 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
     d->stash_frames = 0;
     return -UNW_ENOMEM;
   }
-
+  int myret = unw_is_signal_frame (cursor);
+  Debug(1, "------- unw_is_signal_frame()=%d\n", myret);
   /* Trace the stack upwards, starting from current RIP.  Adjust
      the RIP address for previous/next instruction as the main
      unwinding logic would also do.  We undo this before calling
@@ -450,8 +450,8 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
   while (depth < maxdepth)
   {
     pc -= d->use_prev_instr;
-    Debug (2, "depth %d cfa 0x%lx pc 0x%lx sp 0x%lx fp 0x%lx\n",
-           depth, cfa, pc, sp, fp);
+    Debug (2, "depth %d cfa 0x%lx pc 0x%lx sp 0x%lx fp 0x%lx, lr 0x%lx\n",
+           depth, cfa, pc, sp, fp, lr);
 
     /* See if we have this address cached.  If not, evaluate enough of
        the dwarf unwind information to fill the cache line data, or to
@@ -488,6 +488,11 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
     case UNW_AARCH64_FRAME_GUESSED:
       /* Fall thru to standard processing after forcing validation. */
       c->validate = 1;
+      if (f->lr_cfa_offset == -1)
+      {
+        Debug (2, "link register (x30) = 0x%016lx\n", c->dwarf.ip);
+        lr = c->dwarf.ip;
+      }
 
     case UNW_AARCH64_FRAME_STANDARD:
       /* Advance standard traceable frame. */
@@ -501,6 +506,7 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
       else if (lr != 0)
         {
           /* Use the saved link register as the new pc. */
+          Debug(4, "use link register value 0x%lx as the new pc\n", lr);
           pc = lr;
           lr = 0;
         }
@@ -536,6 +542,9 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
          doesn't save the link register in the prologue, e.g. kill. */
       if (likely(ret >= 0))
         ACCESS_MEM_FAST(ret, c->validate, d, cfa + SC_X30_OFF, lr);
+
+      Debug(4, "signal frame cfa 0x%lx pc 0x%lx fp 0x%lx sp 0x%lx\n",
+            cfa, pc, fp, sp);
 
       /* Resume stack at signal restoration point. The stack is not
          necessarily continuous here, especially with sigaltstack(). */

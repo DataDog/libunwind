@@ -56,8 +56,8 @@
 
 #define SIG_STACK_SIZE 0x100000
 
-int verbose;                /**< enable verbose mode? */
-int repeat_count = 9;       /**< number of times to exercise the signal handler */
+int verbose = 1;                /**< enable verbose mode? */
+int repeat_count = 1;       /**< number of times to exercise the signal handler */
 int num_errors = 0;         /**< cumulatiove error count */
 
 /* These variables are global because they
@@ -344,6 +344,7 @@ sighandler (int signal, siginfo_t *siginfo UNUSED, void *context)
 int
 main (int argc, char **argv UNUSED)
 {
+  printf(" --------------- run baby run\n");
   struct sigaction act;
 #ifdef HAVE_SIGALTSTACK
   stack_t stk;
