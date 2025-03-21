@@ -36,9 +36,9 @@ jobs:
           - { CFLAGS: -O0 }
           - { CFLAGS: -O3 }
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Setup
+      - name: Install ${{ matrix.target.triple }} Toolchain
         if: ${{ matrix.target.arch }} = 'i686'
         run: |
           sudo apt update
@@ -104,21 +104,14 @@ jobs:
           - {target: mips64el, host: mips64el-linux-gnuabi64, qemu: mips64el, gccver: 10 }
 
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-      - name: Install QEMU
-        # this ensure install latest qemu on ubuntu, apt get version is old
-        env:
-          QEMU_SRC: "http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu"
-          QEMU_VER: "qemu-user-static_7\\.2.*_amd64.deb$"
-        run: |
-          DEB=`curl -s $QEMU_SRC/ | grep -o -E 'href="([^"#]+)"' | cut -d'"' -f2 | grep $QEMU_VER | tail -1`
-          wget $QEMU_SRC/$DEB
-          sudo dpkg -i $DEB
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install ${{ matrix.config.host }} Toolchain
         run: |
           sudo apt update
-          sudo apt install -y g++-${{ matrix.config.gccver }}-${{ matrix.config.host }} abigail-tools
+          sudo apt install -y g++-${{ matrix.config.gccver }}-${{ matrix.config.host }} \
+                              qemu-user-static \
+                              abigail-tools
 
       - name: Configure with ${{ matrix.config.cc }}
         run: |
@@ -181,10 +174,10 @@ jobs:
         arch: [aarch64, ppc64le, riscv64, x86_64]
 
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Alpine Linux
-        uses: jirutka/setup-alpine@359b91e094d3dc6292e4b627abb84d8856ab7ef2 # v1.2.0
+        uses: jirutka/setup-alpine@cf5fddcea495dcc19c0f991c6f6fa6a7abf3d50a # v1.3.0
         with:
           branch: edge
           arch: ${{ matrix.arch }}

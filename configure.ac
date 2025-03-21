@@ -65,7 +65,7 @@ AC_CHECK_HEADERS(asm/ptrace_offsets.h asm/ptrace.h asm/vsyscall.h endian.h sys/e
 
 dnl Set target-specific compile flags
 AS_CASE([$target_os],
-        [*-gnu|*-gnueabi*], [UNW_TARGET_CPPFLAGS="-D_GNU_SOURCE"],
+        [*-gnu|*-gnueabi*|*-musl], [UNW_TARGET_CPPFLAGS="-D_GNU_SOURCE"],
         [solaris*],         [UNW_TARGET_CPPFLAGS="-D__EXTENSIONS__"]
 )
 AC_SUBST([UNW_TARGET_CPPFLAGS])
@@ -542,7 +542,7 @@ fi
 AC_MSG_RESULT([$have__builtin_unreachable])
 
 AC_CHECK_TOOL([ABICHECK], [abidw])
-AS_IF([test "$ABICHECK" = ":"],, [
+AS_IF([test x"$ABICHECK" != "x"], [
     abicheck_version=$($ABICHECK --version | sed -n 's/[[^ ]]* \([[0-9]]\).*/\1/p')
     AC_MSG_WARN([$ABICHECK version $abicheck_version])
     AS_IF([test $abicheck_version -ge 2],

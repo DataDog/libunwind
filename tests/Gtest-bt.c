@@ -48,7 +48,14 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 #define panic(...)				\
 	{ fprintf (stderr, __VA_ARGS__); exit (-1); }
 
+#define MIN_FRAMES 3
 #define SIG_STACK_SIZE 0x100000
+
+#if UNW_TARGET_ARM
+#define unwi_unwind_method   UNW_OBJ(unwind_method)
+#define UNW_ARM_METHOD_DWARF 0x01
+#define UNW_ARM_METHOD_EXIDX 0x04
+#endif
 
 int verbose;
 int num_errors;
@@ -65,6 +72,7 @@ do_backtrace (void)
 {
   unw_word_t ip, sp, off;
   unw_proc_info_t pi;
+  unsigned int num_frames = 0;
   int ret;
 
   if (verbose)
@@ -115,13 +123,32 @@ do_backtrace (void)
       ret = unw_step (&cursor);
       if (ret < 0)
 	{
+#if UNW_TARGET_ARM
+	  /*
+	   * On ARM, when using EXIDX, the last frame will return
+	   * cantunwind. Stop unwinding and check later on if enough frames
+	   * have been unwound.
+	   */
+	  extern int unwi_unwind_method;
+	  if (unwi_unwind_method & UNW_ARM_METHOD_EXIDX &&
+	      ret == -UNW_ESTOPUNWIND)
+	    break;
+#endif
 	  unw_get_reg (&cursor, UNW_REG_IP, &ip);
 	  printf ("FAILURE: unw_step() returned %d for ip=%lx\n",
 		  ret, (long) ip);
 	  ++num_errors;
 	}
+
+      ++num_frames;
     }
   while (ret > 0);
+
+  if (num_frames < MIN_FRAMES) {
+         printf ("FAILURE: only found %u frames in the backtrace\n",
+                 num_frames);
+         ++num_errors;
+  }
 
   {
     void *buffer[20];
