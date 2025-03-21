@@ -412,7 +412,7 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
   struct cursor *c = (struct cursor *) cursor;
   struct dwarf_cursor *d = &c->dwarf;
   unw_trace_cache_t *cache;
-  unw_word_t fp, sp, pc, cfa, lr;
+  unw_word_t fp, sp, pc, cfa, lr = 0;
   int maxdepth = 0;
   int depth = 0;
   int ret;
@@ -433,10 +433,6 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
   ACCESS_MEM_FAST(ret, 0, d, DWARF_GET_LOC(d->loc[UNW_AARCH64_X29]), fp);
   assert(ret == 0);
 
-  /* In case of unwinding from ucontext_t, we can look at the link
-     register value */
-  ACCESS_MEM_FAST(ret, 0, d, DWARF_GET_LOC(d->loc[UNW_AARCH64_X30]), lr);
-
   /* Get frame cache. */
   if (unlikely(! (cache = trace_cache_get())))
   {
@@ -445,7 +441,8 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
     d->stash_frames = 0;
     return -UNW_ENOMEM;
   }
-
+  int myret = unw_is_signal_frame (cursor);
+  Debug(1, "------- unw_is_signal_frame()=%d\n", myret);
   /* Trace the stack upwards, starting from current RIP.  Adjust
      the RIP address for previous/next instruction as the main
      unwinding logic would also do.  We undo this before calling
@@ -491,6 +488,11 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
     case UNW_AARCH64_FRAME_GUESSED:
       /* Fall thru to standard processing after forcing validation. */
       c->validate = 1;
+      if (f->lr_cfa_offset == -1)
+      {
+        Debug (2, "link register (x30) = 0x%016lx\n", c->dwarf.ip);
+        lr = c->dwarf.ip;
+      }
 
     case UNW_AARCH64_FRAME_STANDARD:
       /* Advance standard traceable frame. */
@@ -541,8 +543,8 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
       if (likely(ret >= 0))
         ACCESS_MEM_FAST(ret, c->validate, d, cfa + SC_X30_OFF, lr);
 
-      Debug(4, "signal frame cfa 0x%lx pc 0x%lx fp 0x%lx sp 0x%lx lr 0x%lx\n",
-            cfa, pc, fp, sp, lr);
+      Debug(4, "signal frame cfa 0x%lx pc 0x%lx fp 0x%lx sp 0x%lx\n",
+            cfa, pc, fp, sp);
 
       /* Resume stack at signal restoration point. The stack is not
          necessarily continuous here, especially with sigaltstack(). */
@@ -561,8 +563,8 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
       return -UNW_ESTOPUNWIND;
     }
 
-    Debug (4, "new cfa 0x%lx pc 0x%lx sp 0x%lx fp 0x%lx lr 0x%lx\n",
-           cfa, pc, sp, fp, lr);
+    Debug (4, "new cfa 0x%lx pc 0x%lx sp 0x%lx fp 0x%lx\n",
+           cfa, pc, sp, fp);
 
     /* If we failed or ended up somewhere bogus, stop. */
     if (unlikely(ret < 0 || pc < 0x4000))
