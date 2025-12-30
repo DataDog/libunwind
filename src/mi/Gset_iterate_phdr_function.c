@@ -7,17 +7,17 @@
 void
 unw_set_iterate_phdr_function (unw_addr_space_t as, unw_iterate_phdr_func_t function)
 {
-  if (!tdep_init_done)
+  if (!atomic_load(&tdep_init_done))
     tdep_init ();
 
 #ifndef UNW_REMOTE_ONLY
   if (function)
-    as->iterate_phdr_function = function;
+    __atomic_store_n(&as->iterate_phdr_function, function, __ATOMIC_SEQ_CST);
   else
 # if defined(HAVE_DL_ITERATE_PHDR)
-    as->iterate_phdr_function = dl_iterate_phdr;
+    __atomic_store_n(&as->iterate_phdr_function, dl_iterate_phdr, __ATOMIC_SEQ_CST);
 # else
-    as->iterate_phdr_function = NULL;
+    __atomic_store_n(&as->iterate_phdr_function, NULL, __ATOMIC_SEQ_CST);
 # endif
 #endif
 }
