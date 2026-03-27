@@ -142,7 +142,9 @@ target_is_big_endian(void)
     return byte_order_is_big_endian(UNW_BYTE_ORDER);
 }
 
-#if defined(HAVE__BUILTIN_UNREACHABLE)
+#if defined(HAVE_C23_UNREACHABLE)
+# include <stddef.h>
+#elif defined(HAVE__BUILTIN_UNREACHABLE)
 # define unreachable() __builtin_unreachable()
 #else
 # define unreachable() do { } while (1)
@@ -431,6 +433,6 @@ static inline void invalidate_edi (struct elf_dyn_info *edi)
 # define DWARF_VAL_LOC(c,v)     DWARF_NULL_LOC
 #endif
 
-#define UNW_ALIGN(x,a) (((x)+(a)-1UL)&~((a)-1UL))
+#define UNW_ALIGN(x,a) (((size_t)(x) + (size_t)(a) - 1) & ~((size_t)(a) - 1))
 
 #endif /* libunwind_i_h */

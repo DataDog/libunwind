@@ -23,6 +23,8 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 
+#include "ucontext_i.h"
+
 #if defined(__FreeBSD__)
 #define SIG_SETMASK 3
 #endif
@@ -30,6 +32,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 	.globl _UI_siglongjmp_cont
 	.type _UI_siglongjmp_cont, @function
 _UI_siglongjmp_cont:
+	_CET_ENDBR
 #if defined(__linux__) || defined(__QNX__)
 	retq
 #elif defined(__FreeBSD__)

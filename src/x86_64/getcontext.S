@@ -38,6 +38,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 	.type _Ux86_64_getcontext, @function
 _Ux86_64_getcontext:
 	.cfi_startproc
+	_CET_ENDBR
 
 	/* Callee saved: RBX, RBP, R12-R15  */
 	movq %r12, UC_MCONTEXT_GREGS_R12(%rdi)
@@ -117,6 +118,9 @@ _Ux86_64_getcontext:
 	.type _Ux86_64_getcontext_trace, @function
 _Ux86_64_getcontext_trace:
 	.cfi_startproc
+#if defined(__CET__) && __CET__ & 0x01
+	endbr64
+#endif
 
 	/* Save only RBP, RBX, RSP, RIP - exclude this call. */
 	movq %rbp, UC_MCONTEXT_GREGS_RBP(%rdi)

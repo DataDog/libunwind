@@ -47,8 +47,18 @@ uc_addr (ucontext_t *uc, int reg)
 
   if ((unsigned) (reg - UNW_HPPA_GR) < 32)
     addr = &uc->uc_mcontext.sc_gr[reg - UNW_HPPA_GR];
-  else if ((unsigned) (reg - UNW_HPPA_FR) < 32)
-    addr = &uc->uc_mcontext.sc_fr[reg - UNW_HPPA_FR];
+#ifdef __LP64__
+  else if ((unsigned) (reg - UNW_HPPA_FR) < 28)
+    addr = &uc->uc_mcontext.sc_fr[reg + 4 - UNW_HPPA_FR];
+#else
+  else if ((unsigned) (reg - UNW_HPPA_FR) < 56)
+    {
+      unsigned long int *p = (unsigned long int *)&uc->uc_mcontext.sc_fr[4];
+      addr = &p[reg - UNW_HPPA_FR];
+    }
+#endif
+  else if (reg == UNW_HPPA_IP)
+    addr = &uc->uc_mcontext.sc_iaoq[0];
   else
     addr = NULL;
   return addr;
@@ -56,7 +66,7 @@ uc_addr (ucontext_t *uc, int reg)
 
 # ifdef UNW_LOCAL_ONLY
 
-void *
+HIDDEN void *
 _Uhppa_uc_addr (ucontext_t *uc, int reg)
 {
   return uc_addr (uc, reg);
@@ -95,6 +105,15 @@ access_mem (unw_addr_space_t as, unw_word_t addr, unw_word_t *val, int write,
     }
   else
     {
+      /* validate address */
+      const struct cursor *c = (const struct cursor *)arg;
+
+      if (likely (c != NULL) && unlikely (c->validate)
+          && unlikely (!unw_address_is_valid (addr, sizeof(unw_word_t)))) {
+        Debug (16, "mem[%x] -> invalid\n", addr);
+        return -1;
+      }
+
       memcpy (val, (void *) addr, sizeof(unw_word_t));
       Debug (12, "mem[%x] -> %x\n", addr, *val);
     }
@@ -171,7 +190,7 @@ get_static_proc_name (unw_addr_space_t as, unw_word_t ip,
                       char *buf, size_t buf_len, unw_word_t *offp,
                       void *arg)
 {
-  return _Uelf32_get_proc_name (as, getpid (), ip, buf, buf_len, offp);
+  return _Uelf32_get_proc_name (as, getpid (), ip, buf, buf_len, offp, arg);
 }
 
 static int
@@ -179,7 +198,7 @@ get_static_elf_filename (unw_addr_space_t as, unw_word_t ip,
                          char *buf, size_t buf_len, unw_word_t *offp,
                          void *arg)
 {
-  return _Uelf32_get_elf_filename (as, getpid (), ip, buf, buf_len, offp);
+  return _Uelf32_get_elf_filename (as, getpid (), ip, buf, buf_len, offp, arg);
 }
 
 HIDDEN void

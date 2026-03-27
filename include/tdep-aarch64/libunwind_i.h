@@ -321,9 +321,10 @@ extern int tdep_search_unwind_table (unw_addr_space_t as, unw_word_t ip,
                                      unw_dyn_info_t *di, unw_proc_info_t *pi,
                                      int need_unwind_info, void *arg);
 extern void *tdep_uc_addr (unw_context_t *uc, int reg);
-extern int tdep_get_elf_image (struct elf_image *ei, pid_t pid, unw_word_t ip,
+extern int tdep_get_elf_image (unw_addr_space_t as, struct elf_image *ei, pid_t pid, unw_word_t ip,
                                unsigned long *segbase, unsigned long *mapoff,
-                               char *path, size_t pathlen);
+                               char *path, size_t pathlen,
+                               void *arg);
 extern void tdep_get_exe_image_path (char *path);
 extern int tdep_access_reg (struct cursor *c, unw_regnum_t reg,
                             unw_word_t *valp, int write);
@@ -334,5 +335,22 @@ extern void tdep_stash_frame (struct dwarf_cursor *c,
                               struct dwarf_reg_state *rs);
 extern int tdep_getcontext_trace (unw_context_t *);
 extern unw_word_t tdep_strip_ptrauth_insn_mask (unw_cursor_t *cursor, unw_word_t ip);
+
+typedef enum frame_record_location
+  {
+    NONE,           /* frame record creation has not been detected, use LR */
+    AT_SP_OFFSET,   /* frame record creation has been detected, but FP
+                       update not detected */
+    AT_FP,          /* frame record creation and FP update detected */
+  } frame_record_location_t;
+
+typedef struct frame_state
+  {
+    frame_record_location_t loc;
+    int32_t offset;
+  } frame_state_t;
+
+#define get_frame_state UNW_OBJ(get_frame_state)
+HIDDEN frame_state_t get_frame_state (unw_cursor_t *cursor);
 
 #endif /* AARCH64_LIBUNWIND_I_H */

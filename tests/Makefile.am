@@ -32,8 +32,11 @@ testdir = ${pkglibexecdir}
 AM_CPPFLAGS = $(UNW_DEBUG_CPPFLAGS) \
               $(UNW_REMOTE_CPPFLAGS) \
               $(UNW_TARGET_CPPFLAGS) \
+              $(UNW_CET_CFLAGS) \
               -I$(top_srcdir)/include -I$(top_srcdir)/include/tdep-$(arch) -I$(top_srcdir)/src
 AM_CFLAGS = $(UNW_EXTRA_CFLAGS) -g -fno-optimize-sibling-calls
+
+AM_LDFLAGS = $(LD_FLAGS_UNW_CET)
 
 LOG_DRIVER = $(SHELL) $(UNW_TESTDRIVER)
 
@@ -65,6 +68,7 @@ perf:
 
 else
  LIBUNWIND_local = $(top_builddir)/src/libunwind.la
+ LIBUNWIND_internal = $(top_builddir)/src/libunwind-local.la
 if ARCH_IA64
  noinst_PROGRAMS_arch += ia64-test-dyn1
  check_SCRIPTS_arch +=	run-ia64-test-dyn1
@@ -92,7 +96,8 @@ endif
 
 if ARCH_AARCH64
   check_PROGRAMS_arch += Garm64-test-sve-signal Larm64-test-sve-signal   \
-                         aarch64-test-plt aarch64-test-frame-record
+                         aarch64-test-plt \
+                         Laarch64-test-frame-record Gaarch64-test-frame-record
 endif
 
  check_PROGRAMS_cdep +=	Gtest-bt Ltest-bt				 \
@@ -100,12 +105,25 @@ endif
 			Gtest-concurrent Ltest-concurrent		 \
 			Gtest-sig-context Ltest-sig-context		 \
 			Gtest-trace Ltest-trace				 \
-			Ltest-mem-validate				 \
+			Gtest-get_proc_name \
 			test-async-sig test-flush-cache test-init-remote \
+			test-iterate-phdr-reentry			 \
+			test-iterate-phdr-cache-null			 \
 			test-mem test-reg-state Ltest-varargs		 \
 			Ltest-nomalloc Ltest-nocalloc Lrs-race
  noinst_PROGRAMS_cdep += forker Gperf-simple Lperf-simple \
 			Gperf-trace Lperf-trace
+
+# only enable Ltest-mem-validate on archs without conservative checks
+if !CONSERVATIVE_CHECKS
+ check_PROGRAMS_cdep += Ltest-mem-validate
+else #CONSERVATIVE_CHECKS
+if !ARCH_X86_64
+if !ARCH_S390X
+ check_PROGRAMS_cdep += Ltest-mem-validate
+endif
+endif
+endif
 
 # unw_init_local2() is not implemented on ia64
 if !ARCH_IA64
@@ -203,6 +221,12 @@ endif
 if ARCH_ARM
 # ARM Linux kernel >=2.6.39 removed PTRACE_SINGLESTEP emulation
 XFAIL_TESTS += $(XFAIL_TESTS_PTRACE_SINGLESTEP)
+# UNW_INIT_SIGNAL_FRAME is not implemented on ARM
+XFAIL_TESTS += Ltest-init-local-signal Gtest-sig-context Ltest-sig-context
+# Some glibc functions such as "read" don't have .EXIDX instructions.
+# This means that test-async-sig can fail randomly when
+# such functions are involved in the backtrace.
+XFAIL_TESTS += test-async-sig
 endif
 
 if ARCH_LOONGARCH64
@@ -249,9 +273,11 @@ ppc64_test_plt_SOURCES = ppc64-test-plt.c
 
 
 Gx64_test_dwarf_expressions_SOURCES =  Gx64-test-dwarf-expressions.c \
-																			 x64-test-dwarf-expressions.S
+  x64-test-dwarf-expressions.S
 Lx64_test_dwarf_expressions_SOURCES =  Lx64-test-dwarf-expressions.c \
-																			 x64-test-dwarf-expressions.S
+  x64-test-dwarf-expressions.S
+Gx64_test_dwarf_expressions_CFLAGS = $(UNW_CET_CFLAGS)
+Lx64_test_dwarf_expressions_CFLAGS = $(UNW_CET_CFLAGS)
 
 Garm_test_debug_frame_bt_SOURCES = Garm-test-debug-frame-bt.c ident.c
 Larm_test_debug_frame_bt_SOURCES = Larm-test-debug-frame-bt.c ident.c
@@ -259,14 +285,15 @@ Larm_test_debug_frame_bt_SOURCES = Larm-test-debug-frame-bt.c ident.c
 Garm64_test_sve_signal_SOURCES = Garm64-test-sve-signal.c
 Larm64_test_sve_signal_SOURCES = Larm64-test-sve-signal.c
 aarch64_test_plt_SOURCES = aarch64-test-plt.c
-aarch64_test_frame_record_SOURCES = aarch64-test-frame-record.c
+Laarch64_test_frame_record_SOURCES = aarch64-test-frame-record.c
+Gaarch64_test_frame_record_SOURCES = aarch64-test-frame-record.c
 
 if COMPILER_SUPPORTS_MARCH_ARMV8_A_SVE
- Garm64_test_sve_signal_CFLAGS = $(AM_CFLAGS) -fno-inline -march=armv8-a+sve
- Larm64_test_sve_signal_CFLAGS = $(AM_CFLAGS) -fno-inline -march=armv8-a+sve
+ Garm64_test_sve_signal_CFLAGS = $(AM_CFLAGS) -fno-inline -march=armv8-a+sve $(UNW_EXTRA_SVE_FLAGS)
+ Larm64_test_sve_signal_CFLAGS = $(AM_CFLAGS) -fno-inline -march=armv8-a+sve $(UNW_EXTRA_SVE_FLAGS)
 endif
 # https://github.com/libunwind/libunwind/issues/512
-XFAIL_TESTS += Garm64-test-sve-signal Larm64-test-sve-signal
+# XFAIL_TESTS += Garm64-test-sve-signal Larm64-test-sve-signal
 
 Gtest_init_SOURCES = Gtest-init.cxx
 Ltest_init_SOURCES = Ltest-init.cxx
@@ -288,8 +315,10 @@ Ltest_nocalloc_SOURCES = Ltest-nocalloc.c
 Gtest_trace_SOURCES = Gtest-trace.c ident.c
 Ltest_trace_SOURCES = Ltest-trace.c ident.c
 Ltest_mem_validate_SOURCES = Ltest-mem-validate.c
+Gtest_get_proc_name_SOURCES = Gtest-get_proc_name.c
 
 LIBUNWIND = $(top_builddir)/src/libunwind-$(arch).la
+LIBUNWIND_arch = $(top_builddir)/src/libunwind-arch-$(arch).la
 LIBUNWIND_ptrace = $(top_builddir)/src/libunwind-ptrace.la
 LIBUNWIND_coredump = $(top_builddir)/src/libunwind-coredump.la
 
@@ -308,6 +337,8 @@ LIBUNWIND_setjmp = $(top_builddir)/src/libunwind-setjmp.la	\
 
 test_async_sig_LDADD = $(LIBUNWIND_local) $(PTHREADS_LIB)
 test_flush_cache_LDADD = $(LIBUNWIND_local)
+test_iterate_phdr_reentry_LDADD = $(LIBUNWIND_local) $(PTHREADS_LIB)
+test_iterate_phdr_cache_null_LDADD = $(LIBUNWIND_local) $(PTHREADS_LIB)
 test_init_remote_LDADD = $(LIBUNWIND) $(LIBUNWIND_local)
 test_mem_LDADD = $(LIBUNWIND) $(LIBUNWIND_local)
 test_reg_state_LDADD = $(LIBUNWIND) $(LIBUNWIND_local)
@@ -324,6 +355,7 @@ Gtest_concurrent_LDADD = $(LIBUNWIND) $(LIBUNWIND_local) $(PTHREADS_LIB)
 x64_unwind_badjmp_signal_frame_LDADD = $(LIBUNWIND) $(LIBUNWIND_local)
 Gtest_dyn1_LDADD = $(LIBUNWIND) $(LIBUNWIND_local)
 Gtest_exc_LDADD = $(LIBUNWIND) $(LIBUNWIND_local)
+Gtest_get_proc_name_LDADD = $(LIBUNWIND) $(LIBUNWIND_local)
 Gtest_init_LDADD = $(LIBUNWIND) $(LIBUNWIND_local)
 Gtest_resume_sig_LDADD = $(LIBUNWIND) $(LIBUNWIND_local)
 Gtest_resume_sig_rt_LDADD = $(LIBUNWIND) $(LIBUNWIND_local)
@@ -377,4 +409,6 @@ Larm_test_debug_frame_bt_LDADD = $(LIBUNWIND_local)
 Garm64_test_sve_signal_LDADD = $(LIBUNWIND) $(LIBUNWIND_local)
 Larm64_test_sve_signal_LDADD = $(LIBUNWIND_local)
 aarch64_test_plt_LDADD = $(LIBUNWIND)
-aarch64_test_frame_record_LDADD = $(LIBUNWIND)
+Laarch64_test_frame_record_CFLAGS = $(AM_CFLAGS) -DUNW_LOCAL_ONLY
+Laarch64_test_frame_record_LDADD = $(LIBUNWIND_internal)
+Gaarch64_test_frame_record_LDADD = $(LIBUNWIND_arch)

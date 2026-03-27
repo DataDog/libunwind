@@ -26,7 +26,7 @@ AC_COPYRIGHT([
 
 
 define(pkg_major, 1)
-define(pkg_minor, 9)
+define(pkg_minor, 10)
 define(pkg_extra, -pre)
 define(pkg_maintainer, https://github.com/libunwind/libunwind)
 define(mkvers, $1.$2$3)
@@ -81,17 +81,6 @@ AC_CHECK_TYPES([struct elf_prstatus, struct prstatus, procfs_status, elf_fpregse
 
 dnl Checks for libraries.
 AC_MSG_NOTICE([--- Checking for libraries ---])
-save_LDFLAGS="$LDFLAGS"
-save_LIBS="$LIBS"
-LDFLAGS="${LDFLAGS} -nostdlib"
-AC_SEARCH_LIBS([_Unwind_Resume], [gcc_s gcc],
-               [AS_IF([test "$ac_cv_search__Unwind_Resume" != "none required"],
-                      [AC_SUBST([LIBCRTS], ["$ac_cv_search__Unwind_Resume"])])],
-               [],
-               [-lc]
-)
-LIBS="$save_LIBS"
-LDFLAGS="$save_LDFLAGS"
 AC_SEARCH_LIBS([__uc_get_grs], [uca])
 AC_SEARCH_LIBS([getcontext], [ucontext])
 
@@ -299,7 +288,7 @@ AC_ARG_ENABLE([debug],
 )
 AC_MSG_RESULT([$enable_debug])
 
-AC_MSG_CHECKING([if C++ exception support shouldm  be built])
+AC_MSG_CHECKING([if C++ exception support should be built])
 AC_ARG_ENABLE([cxx_exceptions],
               [AS_HELP_STRING([--enable-cxx-exceptions],
                               [use libunwind to handle C++ exceptions
@@ -309,26 +298,42 @@ AC_ARG_ENABLE([cxx_exceptions],
 )
 AS_IF([test $enable_cxx_exceptions = check],
       [AS_CASE([$target_arch],
-               [aarch64*|arm*|mips*|x86*|s390x*|loongarch64], [enable_cxx_exceptions=no],
+               [aarch64*|arm*|hppa*|mips*|x86*|s390x*|loongarch64], [enable_cxx_exceptions=no],
                [enable_cxx_exceptions=yes])]
 )
 AC_MSG_RESULT([$enable_cxx_exceptions])
 AM_CONDITIONAL([SUPPORT_CXX_EXCEPTIONS], [test x$enable_cxx_exceptions = xyes])
+AM_COND_IF([SUPPORT_CXX_EXCEPTIONS],
+           [save_LDFLAGS="$LDFLAGS"
+            LDFLAGS="${LDFLAGS} -nostdlib"
+            AC_SEARCH_LIBS([_Unwind_Resume],
+                           [gcc_s gcc],
+                           [AS_IF([test "$ac_cv_search__Unwind_Resume" != "none required"],
+                                  [AC_SUBST([UNW_CRT_LIBADD],  ["-lc $ac_cv_search__Unwind_Resume"])
+                                   AC_SUBST([UNW_CRT_LDFLAGS], ["-WCClinker -nostdlib"])])
+                           ],,
+                           [-lc])
+            LDFLAGS="$save_LDFLAGS"]
+)
 
 AC_MSG_CHECKING([if documentation should be built])
 AC_ARG_ENABLE([documentation],
-	          [AS_HELP_STRING([--enable-documentation],
-	                          [enable generating the man pages @<:@default=yes@:>@])],
-	          [],
-	          [enable_documentation=yes])
+              [AS_HELP_STRING([--enable-documentation],
+                              [enable generating the man pages @<:@default=yes@:>@])],
+              [],
+              [enable_documentation=yes])
 AC_MSG_RESULT([$enable_documentation])
-AC_PATH_PROG([LATEX2MAN],[latex2man])
-AS_IF([test "x$LATEX2MAN" = "x" && test "x$enable_documentation" != "xno"], [
-  AC_MSG_WARN([latex2man not found. Install latex2man. Disabling docs.])
-  enable_documentation="no";
-])
 AM_CONDITIONAL([CONFIG_DOCS], [test x$enable_documentation != xno])
-AM_COND_IF([CONFIG_DOCS], [AC_CONFIG_FILES([doc/Makefile doc/common.tex])])
+AM_COND_IF([CONFIG_DOCS],
+           [AC_CONFIG_FILES([doc/Makefile doc/common.tex])
+            AC_PATH_PROG([LATEX2MAN],[latex2man],[:])
+            AS_IF([test "x$LATEX2MAN" = "x:"],
+                  [AC_MSG_WARN([latex2man not found. Can not build man pages.])])
+            AC_PATH_PROG([PDFLATEX],[pdflatex],[:])
+            AS_IF([test "x$PDFLATEX" = "x:"],
+                  [AC_MSG_WARN([pdflatex not found. Can not build PDF documentation.])])
+           ]
+)
 
 # Enable tests built around unw_resume, which is not supported on all targets
 AC_MSG_CHECKING([if we should enable unw_resume tests])
@@ -348,7 +353,7 @@ AC_MSG_CHECKING([for target operating system])
 AC_MSG_RESULT([$target_os])
 
 AM_CONDITIONAL([XFAIL_PTRACE_TEST], [echo $CFLAGS | grep -q '\-m32\>'])
-AM_CONDITIONAL([CROSS_BUILD], [test x$build_arch != x$host_arch])
+AM_CONDITIONAL([CROSS_BUILD], [test x$build != x$host])
 AM_CONDITIONAL(REMOTE_ONLY, test x$target_arch != x$host_arch)
 AM_CONDITIONAL(ARCH_AARCH64, test x$target_arch = xaarch64)
 AM_CONDITIONAL(ARCH_ARM, test x$target_arch = xarm)
@@ -431,6 +436,7 @@ if test x$enable_conservative_checks = xyes; then
   AC_DEFINE(CONSERVATIVE_CHECKS, 1,
 	[Define to 1 if you want every memory access validated])
 fi
+AM_CONDITIONAL(CONSERVATIVE_CHECKS, test x$enable_conservative_checks = xyes)
 AC_MSG_RESULT([$enable_conservative_checks])
 
 AC_MSG_CHECKING([whether to enable msabi support])
@@ -475,6 +481,43 @@ fi
 AC_SUBST([LIBZ])
 AM_CONDITIONAL(HAVE_ZLIB, test x$enable_zlibdebuginfo = xyes)
 
+AC_MSG_CHECKING([if -fcf-protection is on by default])
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+#if defined(__x86_64__) && defined(__CET__)
+# error CET is on by default
+#endif
+]])], [cet_on=no],[cet_on=yes])
+AC_MSG_RESULT([$cet_on])
+
+AC_MSG_CHECKING([whether to enable Intel CET support])
+AC_ARG_ENABLE(cet,
+AS_HELP_STRING([--enable-cet], [Enables support for Intel CET]),,
+	[enable_cet=auto])
+case x$enable_cet in
+  xyes)
+    AC_MSG_RESULT([$enable_cet])
+    AC_SUBST([UNW_CET_CFLAGS],["-mshstk -fcf-protection"])
+    AC_SUBST([LD_FLAGS_UNW_CET],["-Wl,-z,cet-report=error"])
+    ;;
+  xno)
+    if test $cet_on = yes; then
+	AC_MSG_RESULT([yes, ignoring --disable-cet since Intel CET is always enabled])
+	AC_SUBST([UNW_CET_CFLAGS],["-mshstk -fcf-protection"])
+	AC_SUBST([LD_FLAGS_UNW_CET],["-Wl,-z,cet-report=error"])
+	enable_cet=yes
+    else
+	AC_MSG_RESULT([$enable_cet])
+    fi
+    ;;
+  xauto)
+    AC_MSG_RESULT([$enable_cet])
+    if test $cet_on = yes; then
+	AC_SUBST([UNW_CET_CFLAGS],["-mshstk -fcf-protection"])
+	AC_SUBST([LD_FLAGS_UNW_CET],["-Wl,-z,cet-report=error"])
+    fi
+    ;;
+esac
+
 AC_MSG_CHECKING([for Intel compiler])
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
         [],
@@ -487,6 +530,16 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
 AC_MSG_RESULT([$intel_compiler])
 if test x$GCC = xyes -a x$intel_compiler != xyes; then
     AC_SUBST([UNW_EXTRA_CFLAGS],["-fexceptions -Wall -Wsign-compare"])
+fi
+
+# Workaround for code generation bug in certain GCC versions for aarch64+sve
+if test x$GCC = xyes; then
+  saved_CFLAGS="$CFLAGS"
+  CFLAGS="$CFLAGS -fno-ipa-sra"
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
+                    [AC_SUBST([UNW_EXTRA_SVE_FLAGS],
+                              ["-fno-stack-clash-protection -fno-ipa-sra"])])
+  CFLAGS="$saved_CFLAGS"
 fi
 
 AC_MSG_CHECKING([for QCC compiler])
@@ -529,6 +582,17 @@ if test x$have__builtin___clear_cache = xyes; then
             [Defined if __builtin___clear_cache() is available])
 fi
 AC_MSG_RESULT([$have__builtin___clear_cache])
+
+AC_MSG_CHECKING([for C23 unreachable()])
+AC_LINK_IFELSE(
+  [AC_LANG_PROGRAM([[#include <stddef.h>]], [[unreachable()]])],
+  [have_c23_unreachable=yes],
+  [have_c23_unreachable=no])
+if test x$have_c23_unreachable = xyes; then
+  AC_DEFINE([HAVE_C23_UNREACHABLE], [1],
+            [Defined if C23 unreachable() is available in <stddef.h>])
+fi
+AC_MSG_RESULT([$have_c23_unreachable])
 
 AC_MSG_CHECKING([for __builtin_unreachable])
 AC_LINK_IFELSE(

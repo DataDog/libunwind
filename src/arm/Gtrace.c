@@ -70,7 +70,7 @@ trace_cache_free (void *arg)
   }
   tls_cache_destroyed = 1;
   tls_cache = NULL;
-  mi_munmap (cache->frames, (1u << cache->log_size) * sizeof(unw_tdep_frame_t));
+  mi_munmap (cache->frames, (1ULL << cache->log_size) * sizeof(unw_tdep_frame_t));
   mempool_free (&trace_cache_pool, cache);
   Debug(5, "freed cache %p\n", cache);
 }
@@ -99,7 +99,7 @@ trace_cache_buckets (size_t n)
 }
 
 /* Allocate and initialise hash table for frame cache lookups.
-   Returns the cache initialised with (1u << HASH_LOW_BITS) hash
+   Returns the cache initialised with (1ULL << HASH_LOW_BITS) hash
    buckets, or NULL if there was a memory allocation problem. */
 static unw_trace_cache_t *
 trace_cache_create (void)
@@ -121,7 +121,7 @@ trace_cache_create (void)
     return NULL;
   }
 
-  if (! (cache->frames = trace_cache_buckets(1u << HASH_MIN_BITS)))
+  if (! (cache->frames = trace_cache_buckets(1ULL << HASH_MIN_BITS)))
   {
     Debug(5, "failed to allocate buckets\n");
     mempool_free(&trace_cache_pool, cache);
@@ -141,9 +141,9 @@ trace_cache_create (void)
 static int
 trace_cache_expand (unw_trace_cache_t *cache)
 {
-  size_t old_size = (1u << cache->log_size);
+  size_t old_size = (1ULL << cache->log_size);
   size_t new_log_size = cache->log_size + 2;
-  unw_tdep_frame_t *new_frames = trace_cache_buckets (1u << new_log_size);
+  unw_tdep_frame_t *new_frames = trace_cache_buckets (1ULL << new_log_size);
 
   if (unlikely(! new_frames))
   {
@@ -287,7 +287,7 @@ trace_lookup (unw_cursor_t *cursor,
      important the hash table does not fill up, or performance falls
      off the cliff. */
   uint32_t i, addr;
-  uint32_t cache_size = 1u << cache->log_size;
+  uint32_t cache_size = 1ULL << cache->log_size;
   uint32_t slot = ((pc * 0x9e3779b9) >> 11) & (cache_size-1);
   unw_tdep_frame_t *frame;
 
@@ -322,7 +322,7 @@ trace_lookup (unw_cursor_t *cursor,
     if (unlikely(trace_cache_expand (cache) < 0))
       return NULL;
 
-    cache_size = 1u << cache->log_size;
+    cache_size = 1ULL << cache->log_size;
     slot = ((pc * 0x9e3779b9) >> 11) & (cache_size-1);
     frame = &cache->frames[slot];
     addr = frame->virtual_address;
@@ -423,7 +423,6 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
   sp = cfa = d->cfa;
   ACCESS_MEM_FAST(ret, 0, d, DWARF_GET_LOC(d->loc[UNW_ARM_R7]), r7);
   assert(ret == 0);
-  lr = 0;
 
   /* Get frame cache. */
   if (unlikely(! (cache = trace_cache_get())))
@@ -441,7 +440,7 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
   while (depth < maxdepth)
   {
     pc -= d->use_prev_instr;
-    Debug (2, "depth %d cfa 0x%x pc 0x%x sp 0x%x r7 0x%x\n",
+    Debug (2, "depth %d cfa 0x%x pc 0x%x sp 0x%x r7 0x%x lr 0x%lx\n",
            depth, cfa, pc, sp, r7);
 
     /* See if we have this address cached.  If not, evaluate enough of
@@ -484,10 +483,16 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
       /* Advance standard traceable frame. */
       cfa = (f->cfa_reg_sp ? sp : r7) + f->cfa_reg_offset;
       if (likely(f->lr_cfa_offset != -1))
+      {
         ACCESS_MEM_FAST(ret, c->validate, d, cfa + f->lr_cfa_offset, pc);
-      else if (lr != 0)
+      }
+      // lr might have been set by the previous frame (sigreturn)
+      // but we might get here directly (uwn_backtrace2 for ex) and lr was not set.
+      // In that case, try reading from the Link Register (X30)
+      else if (lr != 0 || dwarf_get (d, d->loc[UNW_ARM_R14], &lr) >= 0)
       {
         /* Use the saved link register as the new pc. */
+        Debug(4, "use link register value 0x%lx as the new pc\n", lr);
         pc = lr;
         lr = 0;
       }
@@ -513,6 +518,10 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
          doesn't save the link register in the prologue, e.g. kill. */
       if (likely(ret >= 0))
         ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_LR_OFF, lr);
+
+      Debug(4, "signal frame cfa 0x%lx pc 0x%lx r7 0x%lx sp 0x%lx lr 0x%lx\n",
+            cfa, pc, r7, sp, lr);
+
 #elif defined(__FreeBSD__)
       Dprintf ("%s: implement me\n", __FUNCTION__);
       ret = -UNW_ESTOPUNWIND;
@@ -540,8 +549,8 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
       return -UNW_ESTOPUNWIND;
     }
 
-    Debug (4, "new cfa 0x%x pc 0x%x sp 0x%x r7 0x%x\n",
-           cfa, pc, sp, r7);
+    Debug (4, "new cfa 0x%x pc 0x%x sp 0x%x r7 0x%x lr 0x%lx\n",
+           cfa, pc, sp, r7, lr);
 
     /* If we failed or ended up somewhere bogus, stop. */
     if (unlikely(ret < 0 || pc < 0x4000))

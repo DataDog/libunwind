@@ -45,6 +45,7 @@ tests/[GL]test-resume-sig
 tests/[GL]test-resume-sig-rt
 tests/[GL]test-sig-context
 tests/[GL]perf-simple
+tests/Gtest-get_proc_name
 tests/Ltest-nomalloc
 tests/Ltest-nocalloc
 tests/Lperf-simple
@@ -59,6 +60,8 @@ tests/test-async-sig
 tests/test-coredump-unwind
 tests/test-flush-cache
 tests/test-init-remote
+tests/test-iterate-phdr-cache-null
+tests/test-iterate-phdr-reentry
 tests/test-mem
 tests/test-ptrace
 tests/test-runner
