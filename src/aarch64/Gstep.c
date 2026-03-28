@@ -707,10 +707,7 @@ unw_step (unw_cursor_t *cursor)
           else
             {
               /* Frame record stored but not pointed to by X29, use SP.  */
-              unw_word_t sp;
-              ret = dwarf_get (&c->dwarf, c->dwarf.loc[UNW_AARCH64_SP], &sp);
-              if (ret < 0)
-                return ret;
+              unw_word_t sp = c->dwarf.cfa;
 
               for (int i = 0; i < DWARF_NUM_PRESERVED_REGS; ++i)
                 c->dwarf.loc[i] = DWARF_NULL_LOC;
