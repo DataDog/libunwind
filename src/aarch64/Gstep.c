@@ -707,7 +707,10 @@ unw_step (unw_cursor_t *cursor)
           else
             {
               /* Frame record stored but not pointed to by X29, use SP.  */
-              unw_word_t sp = c->dwarf.cfa;
+              unw_word_t sp;
+              ret = dwarf_get (&c->dwarf, c->dwarf.loc[UNW_AARCH64_SP], &sp);
+              if (ret < 0)
+                return ret;
 
               for (int i = 0; i < DWARF_NUM_PRESERVED_REGS; ++i)
                 c->dwarf.loc[i] = DWARF_NULL_LOC;
@@ -741,6 +744,7 @@ unw_step (unw_cursor_t *cursor)
       c->frame_info.fp_cfa_offset = -1;
       c->frame_info.lr_cfa_offset = -1;
       c->frame_info.sp_cfa_offset = -1;
+      c->dwarf.cfa_is_unreliable = 1;
       c->dwarf.loc[UNW_AARCH64_PC] = c->dwarf.loc[UNW_AARCH64_X30];
       c->dwarf.loc[UNW_AARCH64_X30] = DWARF_NULL_LOC;
       if (!DWARF_IS_NULL_LOC (c->dwarf.loc[UNW_AARCH64_PC]))
