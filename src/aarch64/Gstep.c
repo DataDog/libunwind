@@ -619,6 +619,8 @@ unw_step (unw_cursor_t *cursor)
   /* Try DWARF-based unwinding... */
   c->sigcontext_format = AARCH64_SCF_NONE;
   ret = dwarf_step (&c->dwarf);
+  c->dwarf_step_ret = ret;
+  c->step_method = UNW_STEP_DWARF;
   Debug(1, "dwarf_step()=%d\n", ret);
 
   /* Restore default memory validation state */
@@ -681,6 +683,7 @@ unw_step (unw_cursor_t *cursor)
         {
           if (fs.loc == AT_FP)
             {
+              c->step_method = UNW_STEP_FALLBACK_FP;
               /* X29 points to frame record.  */
               ret = dwarf_get (&c->dwarf, c->dwarf.loc[UNW_AARCH64_X29], &fp);
               if (unlikely (ret == 0))
@@ -706,6 +709,7 @@ unw_step (unw_cursor_t *cursor)
             }
           else
             {
+              c->step_method = UNW_STEP_FALLBACK_SP;
               /* Frame record stored but not pointed to by X29, use SP.  */
               unw_word_t sp;
               ret = dwarf_get (&c->dwarf, c->dwarf.loc[UNW_AARCH64_SP], &sp);
@@ -739,12 +743,19 @@ unw_step (unw_cursor_t *cursor)
         }
 
       /* No frame record, fallback to link register (X30).  */
+      c->step_method = UNW_STEP_FALLBACK_LR;
       c->frame_info.cfa_reg_offset = 0;
       c->frame_info.cfa_reg_sp = 0;
       c->frame_info.fp_cfa_offset = -1;
       c->frame_info.lr_cfa_offset = -1;
       c->frame_info.sp_cfa_offset = -1;
       c->dwarf.cfa_is_unreliable = 1;
+
+      c->dwarf.loc[UNW_AARCH64_X29] = DWARF_MEM_LOC(c->dwarf, c->dwarf.cfa);
+      ret = dwarf_get(&c->dwarf, c->dwarf.loc[UNW_AARCH64_X29], &c->dwarf.cfa);
+      if (ret < 0)
+        return ret;
+      c->dwarf.loc[UNW_AARCH64_SP] = c->dwarf.loc[UNW_AARCH64_X29];
       c->dwarf.loc[UNW_AARCH64_PC] = c->dwarf.loc[UNW_AARCH64_X30];
       c->dwarf.loc[UNW_AARCH64_X30] = DWARF_NULL_LOC;
       if (!DWARF_IS_NULL_LOC (c->dwarf.loc[UNW_AARCH64_PC]))

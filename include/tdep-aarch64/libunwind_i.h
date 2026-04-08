@@ -108,6 +108,8 @@ struct cursor
     unw_word_t sigcontext_pc;
     int validate;
     unw_context_t *uc;
+    int dwarf_step_ret;
+    unw_step_method_t step_method;
   };
 
 static inline unw_context_t *
