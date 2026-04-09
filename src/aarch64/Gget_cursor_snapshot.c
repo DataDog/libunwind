@@ -20,6 +20,7 @@ unw_get_cursor_snapshot (unw_cursor_t *cursor, unw_cursor_snapshot_t *snapshot)
   snapshot->frame_type        = c->frame_info.frame_type;
   snapshot->cfa_reg_sp        = c->frame_info.cfa_reg_sp;
   snapshot->cfa_reg_offset    = c->frame_info.cfa_reg_offset;
+  snapshot->loc_info          = (unw_frame_record_location_t) c->loc_info;
 
   return 0;
 }

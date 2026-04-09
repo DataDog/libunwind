@@ -156,6 +156,7 @@ typedef enum frame_record_location
     AT_SP_OFFSET,   /* frame record creation has been detected, but FP
                        update not detected */
     AT_FP,          /* frame record creation and FP update detected */
+    NO_PROC_INFO,
   } frame_record_location_t;
 
 typedef struct frame_state
@@ -184,7 +185,7 @@ get_frame_state (unw_cursor_t *cursor)
   unw_accessors_t *a = unw_get_accessors (c->dwarf.as);
   unw_word_t w, start_ip, ip, offp;
   frame_state_t fs;
-  fs.loc = NONE;
+  fs.loc = NO_PROC_INFO;
   fs.offset = 0;
 
   /* PLT entries do not create frame records */
@@ -196,6 +197,7 @@ get_frame_state (unw_cursor_t *cursor)
   if (((*a->get_proc_name) (c->dwarf.as, c->dwarf.ip, name, sizeof(name), &offp, c->dwarf.as_arg)) != 0)
     return fs;
 
+  fs.loc = NONE;
   start_ip = c->dwarf.ip - offp;
 
   /* Check for frame record instructions since the start of the procedure (start_ip).
@@ -679,7 +681,7 @@ unw_step (unw_cursor_t *cursor)
 
       /* Prefer using frame record. The LR value is stored at an offset of
          8 into the frame record.  */
-      if (fs.loc != NONE)
+      if (fs.loc != NONE && fs.loc != NO_PROC_INFO)
         {
           if (fs.loc == AT_FP)
             {
@@ -744,6 +746,7 @@ unw_step (unw_cursor_t *cursor)
 
       /* No frame record, fallback to link register (X30).  */
       c->step_method = UNW_STEP_FALLBACK_LR;
+      c->loc_info = fs.loc;
       c->frame_info.cfa_reg_offset = 0;
       c->frame_info.cfa_reg_sp = 0;
       c->frame_info.fp_cfa_offset = -1;
@@ -751,10 +754,6 @@ unw_step (unw_cursor_t *cursor)
       c->frame_info.sp_cfa_offset = -1;
       c->dwarf.cfa_is_unreliable = 1;
 
-      c->dwarf.loc[UNW_AARCH64_X29] = DWARF_MEM_LOC(c->dwarf, c->dwarf.cfa);
-      ret = dwarf_get(&c->dwarf, c->dwarf.loc[UNW_AARCH64_X29], &c->dwarf.cfa);
-      if (ret < 0)
-        return ret;
       c->dwarf.loc[UNW_AARCH64_SP] = c->dwarf.loc[UNW_AARCH64_X29];
       c->dwarf.loc[UNW_AARCH64_PC] = c->dwarf.loc[UNW_AARCH64_X30];
       c->dwarf.loc[UNW_AARCH64_X30] = DWARF_NULL_LOC;

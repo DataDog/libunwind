@@ -270,6 +270,15 @@ typedef enum
   }
 unw_step_method_t;
 
+typedef enum
+  {
+    UNW_FRAME_RECORD_NONE,		/* no frame record detected, use LR */
+    UNW_FRAME_RECORD_AT_SP_OFFSET,	/* frame record detected, FP not yet updated */
+    UNW_FRAME_RECORD_AT_FP,		/* frame record detected and FP updated */
+    UNW_FRAME_RECORD_NO_PROC_INFO	/* no proc info available */
+  }
+unw_frame_record_location_t;
+
 typedef struct unw_cursor_snapshot
   {
     unw_word_t cfa;		/* canonical frame address (dwarf.cfa) */
@@ -284,6 +293,7 @@ typedef struct unw_cursor_snapshot
     int frame_type;		/* frame_info.frame_type */
     int cfa_reg_sp;		/* frame_info.cfa_reg_sp */
     int cfa_reg_offset;		/* frame_info.cfa_reg_offset */
+    unw_frame_record_location_t loc_info;	/* frame record location from get_frame_state */
   }
 unw_cursor_snapshot_t;
 

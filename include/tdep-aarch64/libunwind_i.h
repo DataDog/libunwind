@@ -110,6 +110,7 @@ struct cursor
     unw_context_t *uc;
     int dwarf_step_ret;
     unw_step_method_t step_method;
+    int loc_info;
   };
 
 static inline unw_context_t *
