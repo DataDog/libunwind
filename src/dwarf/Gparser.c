@@ -471,13 +471,13 @@ fetch_proc_info (struct dwarf_cursor *c, unw_word_t ip)
     {
       dynamic = 0;
       if ((ret = tdep_find_proc_info (c, ip, 1)) < 0)
-        return ret - 1;
+        return ret;
     }
 
   if (c->pi.format != UNW_INFO_FORMAT_DYNAMIC
       && c->pi.format != UNW_INFO_FORMAT_TABLE
       && c->pi.format != UNW_INFO_FORMAT_REMOTE_TABLE)
-    return -UNW_ENOINFO - 2;
+    return -UNW_ENOINFO;
 
   c->pi_valid = 1;
   c->pi_is_dynamic = dynamic;

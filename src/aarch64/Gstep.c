@@ -200,6 +200,10 @@ get_frame_state (unw_cursor_t *cursor)
   fs.loc = NONE;
   start_ip = c->dwarf.ip - offp;
 
+  frame_state_t saved_fs;
+  saved_fs.loc = NONE;
+  saved_fs.offset = 0;
+
   /* Check for frame record instructions since the start of the procedure (start_ip).
    * access_mem reads WSIZE bytes, so two instructions are checked in each iteration
    */
@@ -345,10 +349,27 @@ get_frame_state (unw_cursor_t *cursor)
           if ((((w & 0xfe407fff00000000) == 0xa8407bfd00000000) && (c->dwarf.ip > ip + 4))
            || (((w & 0x00000000fe407fff) == 0x00000000a8407bfd) && (c->dwarf.ip > ip)))
             {
+              saved_fs = fs;
               fs.loc = NONE;
               fs.offset = 0;
 
               Debug (4, "ip=0x%lx => frame record has been loaded, use LR\n", ip);
+            }
+        }
+
+      /* Check for RET instruction (0xd65f03c0). If IP is past a RET, execution
+         reached this point via a branch that skipped the epilogue, so the frame
+         record is still intact. Restore the state from before the epilogue. */
+      if (fs.loc == NONE && saved_fs.loc != NONE)
+        {
+          if ((((w & 0xffffffff00000000) == 0xd65f03c000000000) && (c->dwarf.ip > ip + 4))
+           || (((w & 0x00000000ffffffff) == 0x00000000d65f03c0) && (c->dwarf.ip > ip)))
+            {
+              fs = saved_fs;
+              saved_fs.loc = NONE;
+              saved_fs.offset = 0;
+
+              Debug (4, "ip=0x%lx => past RET, restoring frame state to loc=%d\n", ip, fs.loc);
             }
         }
     }
@@ -754,7 +775,6 @@ unw_step (unw_cursor_t *cursor)
       c->frame_info.sp_cfa_offset = -1;
       c->dwarf.cfa_is_unreliable = 1;
 
-      c->dwarf.loc[UNW_AARCH64_SP] = c->dwarf.loc[UNW_AARCH64_X29];
       c->dwarf.loc[UNW_AARCH64_PC] = c->dwarf.loc[UNW_AARCH64_X30];
       c->dwarf.loc[UNW_AARCH64_X30] = DWARF_NULL_LOC;
       if (!DWARF_IS_NULL_LOC (c->dwarf.loc[UNW_AARCH64_PC]))
