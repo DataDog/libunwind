@@ -15,8 +15,6 @@ unw_get_cursor_snapshot (unw_cursor_t *cursor, unw_cursor_snapshot_t *snapshot)
   snapshot->loc_fp = DWARF_GET_LOC (c->dwarf.loc[UNW_AARCH64_X29]);
   snapshot->dwarf_step_ret    = c->dwarf_step_ret;
   snapshot->step_method       = c->step_method;
-  snapshot->next_to_signal_frame = c->dwarf.next_to_signal_frame;
-  snapshot->cfa_is_unreliable = c->dwarf.cfa_is_unreliable;
   snapshot->frame_type        = c->frame_info.frame_type;
   snapshot->cfa_reg_sp        = c->frame_info.cfa_reg_sp;
   snapshot->cfa_reg_offset    = c->frame_info.cfa_reg_offset;

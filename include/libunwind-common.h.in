@@ -266,7 +266,8 @@ typedef enum
     UNW_STEP_DWARF,		/* dwarf_step succeeded */
     UNW_STEP_FALLBACK_FP,	/* dwarf_step failed, fell back to frame pointer */
     UNW_STEP_FALLBACK_SP,	/* dwarf_step failed, fell back to SP offset */
-    UNW_STEP_FALLBACK_LR	/* dwarf_step failed, fell back to link register */
+    UNW_STEP_FALLBACK_LR,	/* dwarf_step failed, fell back to link register */
+    UNW_STEP_FALLBACK_LR_NO_PROC_INFO	/* dwarf_step failed, fell back to link register but no proc info available */
   }
 unw_step_method_t;
 

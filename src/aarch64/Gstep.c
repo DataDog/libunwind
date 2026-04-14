@@ -766,14 +766,20 @@ unw_step (unw_cursor_t *cursor)
         }
 
       /* No frame record, fallback to link register (X30).  */
-      c->step_method = UNW_STEP_FALLBACK_LR;
+      if (fs.loc == NO_PROC_INFO)
+        {
+          c->step_method = UNW_STEP_FALLBACK_LR_NO_PROC_INFO;
+        }
+      else
+        {
+          c->step_method = UNW_STEP_FALLBACK_LR;
+        }
       c->loc_info = fs.loc;
       c->frame_info.cfa_reg_offset = 0;
       c->frame_info.cfa_reg_sp = 0;
       c->frame_info.fp_cfa_offset = -1;
       c->frame_info.lr_cfa_offset = -1;
       c->frame_info.sp_cfa_offset = -1;
-      c->dwarf.cfa_is_unreliable = 1;
 
       c->dwarf.loc[UNW_AARCH64_PC] = c->dwarf.loc[UNW_AARCH64_X30];
       c->dwarf.loc[UNW_AARCH64_X30] = DWARF_NULL_LOC;
