@@ -162,6 +162,7 @@ typedef enum frame_record_location
     AT_SP_OFFSET,   /* frame record creation has been detected, but FP
                        update not detected */
     AT_FP,          /* frame record creation and FP update detected */
+    NO_PROC_INFO,   /* no proc info available */
   } frame_record_location_t;
 
 typedef struct frame_state
@@ -190,7 +191,7 @@ get_frame_state (unw_cursor_t *cursor)
   unw_accessors_t *a = unw_get_accessors (c->dwarf.as);
   unw_word_t w, start_ip, ip, offp;
   frame_state_t fs;
-  fs.loc = NONE;
+  fs.loc = NO_PROC_INFO;
   fs.offset = 0;
 
   /* PLT entries do not create frame records */
@@ -202,6 +203,7 @@ get_frame_state (unw_cursor_t *cursor)
   if (((*a->get_proc_name) (c->dwarf.as, c->dwarf.ip, name, sizeof(name), &offp, c->dwarf.as_arg)) != 0)
     return fs;
 
+  fs.loc = NONE;
   start_ip = c->dwarf.ip - offp;
 
   frame_state_t saved_fs;
@@ -674,6 +676,8 @@ unw_step (unw_cursor_t *cursor)
   /* Try DWARF-based unwinding... */
   c->sigcontext_format = AARCH64_SCF_NONE;
   ret = dwarf_step (&c->dwarf);
+  c->dwarf_step_ret = ret;
+  c->step_method = UNW_STEP_DWARF;
   Debug(1, "dwarf_step()=%d\n", ret);
 
   /* Restore default memory validation state */
@@ -732,10 +736,11 @@ unw_step (unw_cursor_t *cursor)
 
       /* Prefer using frame record. The LR value is stored at an offset of
          8 into the frame record.  */
-      if (fs.loc != NONE)
+      if (fs.loc != NONE && fs.loc != NO_PROC_INFO)
         {
           if (fs.loc == AT_FP)
             {
+              c->step_method = UNW_STEP_FALLBACK_FP;
               /* X29 points to frame record.  */
               ret = dwarf_get (&c->dwarf, c->dwarf.loc[UNW_AARCH64_X29], &fp);
               if (unlikely (ret == 0))
@@ -761,6 +766,7 @@ unw_step (unw_cursor_t *cursor)
             }
           else
             {
+              c->step_method = UNW_STEP_FALLBACK_SP;
               /* Frame record stored but not pointed to by X29, use SP.  */
               unw_word_t sp;
               ret = dwarf_get (&c->dwarf, c->dwarf.loc[UNW_AARCH64_SP], &sp);
@@ -794,6 +800,15 @@ unw_step (unw_cursor_t *cursor)
         }
 
       /* No frame record, fallback to link register (X30).  */
+      if (fs.loc == NO_PROC_INFO)
+        {
+          c->step_method = UNW_STEP_FALLBACK_LR_NO_PROC_INFO;
+        }
+      else
+        {
+          c->step_method = UNW_STEP_FALLBACK_LR;
+        }
+      c->loc_info = fs.loc;
       c->frame_info.cfa_reg_offset = 0;
       c->frame_info.cfa_reg_sp = 0;
       c->frame_info.fp_cfa_offset = -1;

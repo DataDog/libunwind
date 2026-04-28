@@ -422,6 +422,7 @@ libunwind_la_SOURCES =                         \
 	aarch64/Lcreate_addr_space.c           \
 	aarch64/Lget_proc_info.c               \
 	aarch64/Lget_save_loc.c                \
+	aarch64/Lget_cursor_snapshot.c         \
 	aarch64/Lglobal.c                      \
 	aarch64/Linit.c                        \
 	aarch64/Linit_local.c                  \
@@ -448,6 +449,7 @@ libunwind_aarch64_la_SOURCES =                 \
 	aarch64/Gcreate_addr_space.c           \
 	aarch64/Gget_proc_info.c               \
 	aarch64/Gget_save_loc.c                \
+	aarch64/Gget_cursor_snapshot.c         \
 	aarch64/Gglobal.c                      \
 	aarch64/Ginit.c                        \
 	aarch64/Ginit_local.c                  \
