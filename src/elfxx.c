@@ -923,6 +923,7 @@ elf_w (load_debuginfo) (const char* file, struct elf_image *ei, int is_local)
 
       memcpy(linkbuf, link, shdr->sh_size);
 
+      
       if (memchr (linkbuf, 0, shdr->sh_size) == NULL)
 	return 0;
 
