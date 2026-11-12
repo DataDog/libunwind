@@ -170,6 +170,12 @@ check_local_unw_abi () {
     match unw_backtrace2
 
     case ${plat} in
+	aarch64)
+	    match _U${plat}_is_fpreg
+	    match _UL${plat}_dwarf_search_unwind_table
+	    match _UL${plat}_dwarf_find_unwind_table
+	    match _UL${plat}_get_cursor_snapshot
+	    ;;
 	arm)
 	    match _U${plat}_getcontext
 	    match _U${plat}_is_fpreg
@@ -280,6 +286,7 @@ check_generic_unw_abi () {
 	    match _U${plat}_get_exe_image_path
 	    match _U${plat}_dwarf_search_unwind_table
 	    match _U${plat}_dwarf_find_unwind_table
+	    match _U${plat}_get_cursor_snapshot
 	    ;;
 	arm)
 	    match _U${plat}_is_fpreg
