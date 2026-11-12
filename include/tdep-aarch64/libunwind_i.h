@@ -133,10 +133,25 @@ dwarf_get_uc(const struct dwarf_cursor *cursor)
 # define DWARF_FPREG_LOC(c,r)   (DWARF_LOC((unw_word_t)                      \
                                  tdep_uc_addr(dwarf_get_uc(c), (r)), 0))
 
+/* Local unwinding: when the cursor sets validate (see unw_step), check that
+   the address is mapped before reading it. Same rule as access_mem in
+   src/aarch64/Ginit.c. Returns 1 if the read may go ahead.  */
+static inline int
+dwarf_local_addr_ok (struct dwarf_cursor *c, unw_word_t addr, size_t len)
+{
+  const struct cursor *cur = (const struct cursor *) c->as_arg;
+  if (likely (cur != NULL) && unlikely (cur->validate)
+      && unlikely (!unw_address_is_valid (addr, len)))
+    return 0;
+  return 1;
+}
+
 static inline int
 dwarf_getfp (struct dwarf_cursor *c, dwarf_loc_t loc, unw_fpreg_t *val)
 {
   if (!DWARF_GET_LOC (loc))
+    return -1;
+  if (!dwarf_local_addr_ok (c, DWARF_GET_LOC (loc), sizeof (unw_fpreg_t)))
     return -1;
   *val = *(unw_fpreg_t *) DWARF_GET_LOC (loc);
   return 0;
@@ -155,6 +170,8 @@ static inline int
 dwarf_get (struct dwarf_cursor *c, dwarf_loc_t loc, unw_word_t *val)
 {
   if (!DWARF_GET_LOC (loc))
+    return -1;
+  if (!dwarf_local_addr_ok (c, DWARF_GET_LOC (loc), sizeof (unw_word_t)))
     return -1;
   *val = *(unw_word_t *) DWARF_GET_LOC (loc);
   return 0;

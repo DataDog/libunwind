@@ -85,7 +85,8 @@ endif #!ARCH_IA64
 
 if ARCH_AARCH64
   check_PROGRAMS_arch += Garm64-test-sve-signal Larm64-test-sve-signal   \
-                         aarch64-test-plt aarch64-test-frame-record
+                         aarch64-test-plt aarch64-test-frame-record \
+                         aarch64-test-local-validate
 endif
 
  check_PROGRAMS_cdep +=	Gtest-bt Ltest-bt				 \
@@ -239,6 +240,7 @@ Garm64_test_sve_signal_SOURCES = Garm64-test-sve-signal.c
 Larm64_test_sve_signal_SOURCES = Larm64-test-sve-signal.c
 aarch64_test_plt_SOURCES = aarch64-test-plt.c
 aarch64_test_frame_record_SOURCES = aarch64-test-frame-record.c
+aarch64_test_local_validate_SOURCES = aarch64-test-local-validate.c
 
 if COMPILER_SUPPORTS_MARCH_ARMV8_A_SVE
  Garm64_test_sve_signal_CFLAGS = $(AM_CFLAGS) -fno-inline -march=armv8-a+sve
