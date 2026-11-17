@@ -86,7 +86,7 @@ endif #!ARCH_IA64
 if ARCH_AARCH64
   check_PROGRAMS_arch += Garm64-test-sve-signal Larm64-test-sve-signal   \
                          aarch64-test-plt aarch64-test-frame-record \
-                         aarch64-test-local-validate
+                         aarch64-test-local-validate aarch64-test-step-bad-frames
 endif
 
  check_PROGRAMS_cdep +=	Gtest-bt Ltest-bt				 \
@@ -241,6 +241,8 @@ Larm64_test_sve_signal_SOURCES = Larm64-test-sve-signal.c
 aarch64_test_plt_SOURCES = aarch64-test-plt.c
 aarch64_test_frame_record_SOURCES = aarch64-test-frame-record.c
 aarch64_test_local_validate_SOURCES = aarch64-test-local-validate.c
+aarch64_test_step_bad_frames_SOURCES = aarch64-test-step-bad-frames.c \
+                                       aarch64-test-step-bad-frames-asm.S
 
 if COMPILER_SUPPORTS_MARCH_ARMV8_A_SVE
  Garm64_test_sve_signal_CFLAGS = $(AM_CFLAGS) -fno-inline -march=armv8-a+sve
@@ -355,3 +357,4 @@ Garm64_test_sve_signal_LDADD = $(LIBUNWIND) $(LIBUNWIND_local)
 Larm64_test_sve_signal_LDADD = $(LIBUNWIND_local)
 aarch64_test_plt_LDADD = $(LIBUNWIND)
 aarch64_test_frame_record_LDADD = $(LIBUNWIND) $(LIBUNWIND_local)
+aarch64_test_step_bad_frames_LDADD = $(LIBUNWIND_local) $(PTHREADS_LIB)
