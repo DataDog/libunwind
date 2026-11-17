@@ -680,11 +680,11 @@ unw_step (unw_cursor_t *cursor)
   c->step_method = UNW_STEP_DWARF;
   Debug(1, "dwarf_step()=%d\n", ret);
 
-  /* Restore default memory validation state */
-  c->validate = validate;
-
   if (unlikely (ret == -UNW_ESTOPUNWIND))
-    return ret;
+    {
+      c->validate = validate;
+      return ret;
+    }
 
   if (likely (ret > 0))
     {
@@ -697,9 +697,13 @@ unw_step (unw_cursor_t *cursor)
 	   */
 	  c->dwarf.ip = 0;
 	  Debug (2, "NULL frame pointer X29 loc, returning 0\n");
+	  c->validate = validate;
 	  return 0;
         }
     }
+
+  /* Restore default memory validation state */
+  c->validate = validate;
 
   if (unlikely (ret < 0))
     {
